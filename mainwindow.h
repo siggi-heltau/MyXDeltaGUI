@@ -35,12 +35,24 @@ private slots:
 
 	void on_txtPatchFile_editingFinished();
 
+    void showDoneDialog();
+
+    void on_radioCreatePatch_toggled(bool checked);
+
+    void on_radioApplyPatch_toggled(bool checked);
+
+public slots:
+    void onXdeltaCreatePatchFinished();
+    void onXdeltePatchFileFinished();
+
 private:
 	Ui::MainWindow *ui;
 
 	QString oldFilename;
 	QString newFilename;
 	QString patchFilename;
+
+    int operation;
 
 };
 

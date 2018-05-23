@@ -20,3 +20,10 @@ HEADERS  += mainwindow.h \
     xdeltaprocess.h
 
 FORMS    += mainwindow.ui
+
+
+INCLUDEPATH += \
+    ../QtProjects/helpers/
+
+
+include(    ../QtProjects/helpers.pri )

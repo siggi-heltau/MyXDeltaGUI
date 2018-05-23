@@ -1,8 +1,14 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-#include <QFileDialog>
+#include "xdeltaprocess.h"
 
+
+#include <QFileDialog>
+#include <QMessageBox>
+
+const char *xdeltaFilter = "XDelta Dateien (*.xdelta);;Alle Dateien (*.*)";
+const char *abbildFilter = "Abbild Dateien (*.img *.bin *.raw *.iso);;Alle Dateien (*.*)";
 
 MainWindow::MainWindow(QWidget *parent) :
 	QMainWindow(parent),
@@ -10,11 +16,11 @@ MainWindow::MainWindow(QWidget *parent) :
 {
 	ui->setupUi(this);
 	ui->progressBar->setValue(0);
-
+    operation = XDELTA_CREATE_PATCH;
 }
 
 MainWindow::~MainWindow()
-{
+{    
 	delete ui;
 }
 
@@ -27,17 +33,34 @@ void MainWindow::on_btnBrowseOldFile_clicked()
 
 void MainWindow::on_btnBrowseNewFile_clicked()
 {
+    if(operation == XDELTA_PATCH) {
 	newFilename = QFileDialog::getSaveFileName(
-				this, "Neue Datei suchen ...",
+                this, "Neue Datei zum erstellen suchen ...",
 				QDir::homePath(),
-				QString::fromLatin1("*.*"));
+                QString::fromLatin1(abbildFilter));
+    } else if(operation == XDELTA_CREATE_PATCH) {
+        newFilename = QFileDialog::getOpenFileName(
+                    this, "Neue vorhandene Datei suchen ...",
+                    QDir::homePath(),
+                    QString::fromLatin1(abbildFilter));
+    }
 	ui->txtNewFile->setText( newFilename );
 }
 
 
 void MainWindow::on_btnBrowsePatchFile_clicked()
 {
-	patchFilename = showFileDialog();
+    if(operation == XDELTA_PATCH) {
+        patchFilename = QFileDialog::getOpenFileName(
+                    this, "Patch Datei suchen ...",
+                    QDir::homePath(),
+                    QString::fromLatin1(xdeltaFilter));
+    } else if (operation == XDELTA_CREATE_PATCH) {
+        patchFilename = QFileDialog::getSaveFileName(
+                    this, "Patch Datei zum speichern suchen ...",
+                    QDir::homePath(),
+                    QString::fromLatin1(xdeltaFilter));
+    }
 	ui->txtPatchFile->setText( patchFilename );
 }
 
@@ -47,9 +70,23 @@ void MainWindow::on_btnAction_clicked()
 	if ( !newFilename.isEmpty() && !oldFilename.isEmpty() && !patchFilename.isEmpty()) {
 		// progress bar aktiv setzen
 		toggleProgressBarActivity();
-		// xdelta aufrufen
-		// progress bar inaktiv setzen
-		popen()
+
+        // xdelta worker thread erzeugen
+        XDeltaWorker *xdeltaWorker = new XDeltaWorker(this);
+        xdeltaWorker->setFilenames(
+                    oldFilename,
+                    newFilename,
+                    patchFilename);
+        xdeltaWorker->setOperation( operation );
+
+        QObject::connect(xdeltaWorker, SIGNAL(doneCreateDelta()), this,
+                         SLOT(onXdeltaCreatePatchFinished()));
+        QObject::connect(xdeltaWorker, SIGNAL(donePatch()), this,
+                         SLOT(onXdeltePatchFileFinished()));
+        QObject::connect(xdeltaWorker, SIGNAL(finished()), xdeltaWorker,
+                         SLOT(deleteLater()));
+
+        xdeltaWorker->start();
 
 	}
 }
@@ -60,7 +97,7 @@ QString MainWindow::showFileDialog()
 	QString fileName = QFileDialog::getOpenFileName(
 				this, "Alte Datei suchen ...",
 				QDir::homePath(),
-				QString::fromLatin1("*.*"));
+                QString::fromLatin1(abbildFilter));
 
 	return fileName;
 }
@@ -98,5 +135,38 @@ void MainWindow::on_txtNewFile_editingFinished()
 
 void MainWindow::on_txtPatchFile_editingFinished()
 {
-	patchFilename = ui->txtPatchFile->text();
+    patchFilename = ui->txtPatchFile->text();
+}
+
+void MainWindow::showDoneDialog()
+{
+    QMessageBox::information(
+                this, "Finito",
+                "Worker thread finished...");
+}
+
+void MainWindow::onXdeltaCreatePatchFinished()
+{
+    stopProgressBarShowBusy();
+    showDoneDialog();
+}
+
+void MainWindow::onXdeltePatchFileFinished()
+{
+    stopProgressBarShowBusy();
+    showDoneDialog();
+}
+
+void MainWindow::on_radioCreatePatch_toggled(bool checked)
+{
+    if(checked) {
+        operation = XDELTA_CREATE_PATCH;
+    }
+}
+
+void MainWindow::on_radioApplyPatch_toggled(bool checked)
+{
+    if(checked) {
+        operation = XDELTA_PATCH;
+    }
 }
